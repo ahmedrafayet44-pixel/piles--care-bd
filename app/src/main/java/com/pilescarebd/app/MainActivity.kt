@@ -13,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collect
+import java.time.LocalDate
 
 private val BrandGreen = Color(0xFF168B68)
 private val DeepGreen = Color(0xFF0C604A)
@@ -28,6 +30,7 @@ private val Muted = Color(0xFF718078)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -46,10 +49,35 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PilesCareApp() {
-    var water by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("piles_care_data", 0)
+    }
+
+    val today = LocalDate.now().toString()
+    val savedDate = prefs.getString("water_date", "")
+
+    var water by remember {
+        mutableIntStateOf(
+            if (savedDate == today) prefs.getInt("water_ml", 0)
+            else 0
+        )
+    }
+
+    var goal by remember {
+        mutableIntStateOf(prefs.getInt("water_goal", 2000))
+    }
+
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    val goal = 2000
+    LaunchedEffect(water, goal) {
+        prefs.edit()
+            .putString("water_date", today)
+            .putInt("water_ml", water)
+            .putInt("water_goal", goal)
+            .apply()
+    }
+
     val progress = (water.toFloat() / goal).coerceIn(0f, 1f)
 
     Scaffold(
@@ -106,7 +134,6 @@ fun PilesCareApp() {
                 ),
                 verticalArrangement = Arrangement.spacedBy(17.dp)
             ) {
-
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -129,7 +156,7 @@ fun PilesCareApp() {
                         }
 
                         Box(
-                            modifier = Modifier
+                            Modifier
                                 .size(48.dp)
                                 .background(Mint, CircleShape),
                             contentAlignment = Alignment.Center
@@ -141,11 +168,16 @@ fun PilesCareApp() {
 
                 item {
                     WaterCard(
-                        water,
-                        goal,
-                        progress,
-                        { water += 250 },
-                        { water = (water - 250).coerceAtLeast(0) }
+                        water = water,
+                        goal = goal,
+                        progress = progress,
+                        onAdd = { amount ->
+                            water += amount
+                        },
+                        onRemove = {
+                            water = (water - 250).coerceAtLeast(0)
+                        },
+                        onGoalChange = { goal = it }
                     )
                 }
 
@@ -162,7 +194,6 @@ fun PilesCareApp() {
                             "এখনো যোগ হয়নি",
                             Color(0xFFFFF3E8)
                         )
-
                         SummaryTile(
                             Modifier.weight(1f),
                             "🌿",
@@ -174,7 +205,7 @@ fun PilesCareApp() {
                 }
 
                 item {
-                    SectionHeading("দ্রুত যোগ করুন", "সহজে রেকর্ড রাখুন")
+                    SectionHeading("দৈনিক যত্ন", "নিজের রেকর্ড রাখুন")
                 }
 
                 item {
@@ -184,23 +215,17 @@ fun PilesCareApp() {
                             "খাবারের ডায়েরি",
                             "আজ কী খেয়েছো লিখে রাখো"
                         )
-
                         ActionRow(
                             "🩺",
                             "পাইলস ও পায়খানার রেকর্ড",
                             "জ্বালা, ফোলা ও পায়খানার অবস্থা"
                         )
-
                         ActionRow(
                             "💊",
                             "ওষুধ ও রিমাইন্ডার",
                             "ওষুধের সময়সূচি সাজাও"
                         )
                     }
-                }
-
-                item {
-                    SectionHeading("আজকের ছোট লক্ষ্য", "নিজের সুবিধামতো")
                 }
 
                 item {
@@ -214,34 +239,24 @@ fun PilesCareApp() {
                             Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            GoalLine(
-                                "💧",
-                                "পানি পান",
-                                "পানির পরিমাণ নোট করো"
+                            Text(
+                                "আজকের ছোট লক্ষ্য",
+                                color = Ink,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
                             )
-
+                            GoalLine("💧", "পানি পান", "পানির পরিমাণ নোট করো")
                             HorizontalDivider(color = Color(0xFFEDF1EE))
-
-                            GoalLine(
-                                "🥗",
-                                "আঁশযুক্ত খাবার",
-                                "শাকসবজি ও ফলের হিসাব রাখো"
-                            )
-
+                            GoalLine("🥗", "আঁশযুক্ত খাবার", "শাকসবজি ও ফলের হিসাব রাখো")
                             HorizontalDivider(color = Color(0xFFEDF1EE))
-
-                            GoalLine(
-                                "📝",
-                                "লক্ষণ লিখে রাখো",
-                                "প্রতিদিনের পরিবর্তন লক্ষ্য করো"
-                            )
+                            GoalLine("📝", "লক্ষণ লিখে রাখো", "প্রতিদিনের পরিবর্তন লক্ষ্য করো")
                         }
                     }
                 }
 
                 item {
                     Text(
-                        "তোমার তথ্য এই ফোনেই রাখার জন্য তৈরি হচ্ছে",
+                        "তোমার পানির হিসাব এই ফোনেই সংরক্ষিত থাকে।",
                         color = Muted,
                         fontSize = 11.sp
                     )
@@ -267,8 +282,9 @@ private fun WaterCard(
     water: Int,
     goal: Int,
     progress: Float,
-    onAdd: () -> Unit,
-    onRemove: () -> Unit
+    onAdd: (Int) -> Unit,
+    onRemove: () -> Unit,
+    onGoalChange: (Int) -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(25.dp),
@@ -278,7 +294,7 @@ private fun WaterCard(
     ) {
         Column(
             Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(13.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -288,7 +304,8 @@ private fun WaterCard(
                     Text(
                         "💧 পানির হিসাব",
                         color = Color(0xFF245B7A),
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
                     )
                     Text(
                         "আজ কতটুকু পানি পান করেছো?",
@@ -296,12 +313,7 @@ private fun WaterCard(
                         fontSize = 11.sp
                     )
                 }
-
-                Text(
-                    "WATER",
-                    color = Color(0xFF5793B9),
-                    fontSize = 10.sp
-                )
+                Text("WATER", color = Color(0xFF5793B9), fontSize = 10.sp)
             }
 
             Row(verticalAlignment = Alignment.Bottom) {
@@ -311,11 +323,8 @@ private fun WaterCard(
                     fontSize = 35.sp,
                     fontWeight = FontWeight.Bold
                 )
-
                 Text(" ml", color = Color(0xFF397FA6))
-
                 Spacer(Modifier.weight(1f))
-
                 Text("লক্ষ্য $goal ml", color = Color(0xFF527C94))
             }
 
@@ -323,37 +332,117 @@ private fun WaterCard(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(9.dp),
+                    .height(10.dp),
                 color = Color(0xFF2796D2),
                 trackColor = Color(0xFFD2E8F5)
             )
 
             Text(
-                (progress * 100).toInt().toString() + "% সম্পন্ন",
+                "${(progress * 100).toInt()}% সম্পন্ন",
                 color = Color(0xFF527C94),
-                fontSize = 11.sp
+                fontSize = 12.sp
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Button(
-                    onClick = onAdd,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1687C3)
-                    )
-                ) {
-                    Text("＋ ২৫০ ml যোগ")
+            Text(
+                if (water >= goal) "🎉 আজকের নির্ধারিত লক্ষ্য পূরণ হয়েছে!"
+                else "আরও ${goal - water} ml বাকি",
+                color = Color(0xFF245B7A),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp
+            )
+
+            Text(
+                "পানি যোগ করুন",
+                color = Color(0xFF245B7A),
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                WaterButton("＋ ২৫০", Modifier.weight(1f)) {
+                    onAdd(250)
+                }
+                WaterButton("＋ ৫০০", Modifier.weight(1f)) {
+                    onAdd(500)
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                WaterButton("＋ ১০০০", Modifier.weight(1f)) {
+                    onAdd(1000)
                 }
 
                 OutlinedButton(
                     onClick = onRemove,
-                    shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("− ২৫০")
+                    Text("− ২৫০ ml")
                 }
             }
+
+            HorizontalDivider(color = Color(0xFFD2E8F5))
+
+            Text(
+                "দৈনিক পানির লক্ষ্য পরিবর্তন",
+                color = Color(0xFF245B7A),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp
+            )
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        onGoalChange((goal - 250).coerceAtLeast(500))
+                    }
+                ) {
+                    Text("−")
+                }
+
+                Text(
+                    "$goal ml",
+                    color = Color(0xFF176C9C),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        onGoalChange((goal + 250).coerceAtMost(5000))
+                    }
+                ) {
+                    Text("+")
+                }
+            }
+
+            Text(
+                "লক্ষ্যটি নিজের প্রয়োজন অনুযায়ী ঠিক করো।",
+                color = Color(0xFF668397),
+                fontSize = 10.sp
+            )
         }
+    }
+}
+
+@Composable
+private fun WaterButton(
+    label: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 10.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF1687C3)
+        )
+    ) {
+        Text(label, fontSize = 12.sp)
     }
 }
 
@@ -370,7 +459,6 @@ private fun SectionHeading(title: String, subtitle: String) {
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold
         )
-
         Text(subtitle, color = Muted, fontSize = 10.sp)
     }
 }
@@ -386,9 +474,7 @@ private fun SummaryTile(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(19.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             Modifier.padding(14.dp),
@@ -402,21 +488,13 @@ private fun SummaryTile(
             ) {
                 Text(emoji, fontSize = 19.sp)
             }
-
             Text(
                 title,
                 color = Ink,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
-
-            Text(
-                value,
-                color = Muted,
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(value, color = Muted, fontSize = 10.sp)
         }
     }
 }
@@ -429,9 +507,7 @@ private fun ActionRow(
 ) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Row(
             Modifier
@@ -460,11 +536,7 @@ private fun ActionRow(
                 Text(description, color = Muted, fontSize = 10.sp)
             }
 
-            Text(
-                "＋",
-                color = BrandGreen,
-                fontSize = 23.sp
-            )
+            Text("＋", color = BrandGreen, fontSize = 23.sp)
         }
     }
 }
@@ -478,7 +550,6 @@ private fun GoalLine(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(emoji, fontSize = 22.sp)
         Spacer(Modifier.width(12.dp))
-
         Column {
             Text(
                 title,
@@ -505,24 +576,19 @@ private fun PlaceholderPage(
     ) {
         Text("🌱", fontSize = 48.sp)
         Spacer(Modifier.height(12.dp))
-
         Text(
             title,
             color = DeepGreen,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
-
         Spacer(Modifier.height(8.dp))
-
         Text(
             "এই বিভাগটি পরবর্তী আপডেটে তৈরি করা হবে।",
             color = Muted,
             fontSize = 13.sp
         )
-
         Spacer(Modifier.height(18.dp))
-
         Button(onClick = onHome) {
             Text("হোমে ফিরে যাও")
         }
